@@ -4,6 +4,7 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense
 import random
+from keras.callbacks import LearningRateScheduler
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -43,7 +44,8 @@ class QNNAgent(object):
 		else:
 			return int((rv - (1 - epsilon))/epsilon*self.action_space_dim)
 
-	def train(self, X, Y, epochs=1):
+	def train(self, X, Y, epochs=1, lr=1e-3):
+		self.QNN.lr = lr
 		return self.QNN.train(X, Y, epochs=epochs)
 
 	def max_action_value(self, state):
@@ -58,6 +60,7 @@ class DiscreteActionQNN(object):
 	Qmodel = None
 	state_space_dim = 0
 	action_space_dim = 0
+	lr = 1e-3
 
 	def __init__(self, state_space_dim, action_space_dim):
 		self.Qmodel = self._naiveDenseNetwork(state_space_dim, action_space_dim, show_summary=True)
@@ -75,15 +78,22 @@ class DiscreteActionQNN(object):
 		Qmodel.summary()
 		return Qmodel
 
+	# This is a sample of a scheduler I used in the past
+	def lr_scheduler(self, epoch, lr):
+	    return self.lr
+
 	def train(self, X, Y, epochs=1):
 		if len(Y)>100:
+			batch_size=64
+		elif len(Y)>50:
 			batch_size=32
 		else:
 			batch_size=16
 		combined = list(zip(X, Y))
 		random.shuffle(combined)
 		X[:], Y[:] = zip(*combined)
-		hist = self.Qmodel.fit(X, Y, epochs=epochs, batch_size=32, verbose=0)
+		callbacks = [LearningRateScheduler(self.lr_scheduler, verbose=1)]
+		hist = self.Qmodel.fit(X, Y, epochs=epochs, callbacks=callbacks, batch_size=batch_size, verbose=0)
 		return hist
 
 	def predict(self, X):
